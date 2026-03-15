@@ -75,8 +75,11 @@ def train(
 
             center_ids  = batch[:, 0]
             context_ids = batch[:, 1]
+            # Exclude both the true context word and the centre word from
+            # negative samples — neither should appear as a noise target.
+            exclude     = np.column_stack([center_ids, context_ids])  # (B, 2)
             neg_ids     = vocab.sample_negatives(B, neg_samples,
-                                                  exclude=context_ids)
+                                                 exclude=exclude)
 
             # Linear LR decay: lr decreases uniformly from lr_start to lr_min
             progress = global_step / max(total_steps_est, 1)
