@@ -5,6 +5,8 @@ No PyTorch, no TensorFlow, no autograd — every forward pass, loss, and gradien
 
 **Dataset:** [text8](http://mattmahoney.net/dc/text8.zip) — first 10⁸ bytes of a cleaned English Wikipedia dump, the canonical small benchmark for word2vec.
 
+**[Live Demo →](https://hammi03.github.io/word2vec-numpy/)** — interactive t-SNE explorer: search words, zoom/pan, click to highlight nearest neighbours.
+
 ---
 
 ## Algorithm
