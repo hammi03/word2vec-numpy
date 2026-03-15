@@ -92,7 +92,7 @@ def run_tsne(vectors: np.ndarray, seed: int = 42):
         learning_rate="auto",
         init="pca",
         random_state=seed,
-        n_iter=2000,
+        max_iter=2000,
     )
     return tsne.fit_transform(vectors)
 
