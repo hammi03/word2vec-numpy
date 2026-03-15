@@ -154,36 +154,48 @@ class Vocabulary:
         exclude: np.ndarray = None,
     ) -> np.ndarray:
         """
-        Draw an (n, k) array of noise-word indices from the unigram^(3/4) table.
+        Draw an (n, k) array of noise-word indices from the unigram^(3/4) table,
+        ensuring no drawn word appears in the per-row exclusion list.
 
         Parameters
         ----------
         n       : number of training pairs (rows)
         k       : negative samples per pair (columns)
-        exclude : int32 array of shape (n,) — one word index per row to
-                  exclude from that row's negative samples (typically the
-                  true context word).  If None, no exclusion is applied.
+        exclude : int32 array of shape (n,) or (n, m) — one or more word
+                  indices per row to exclude from that row's negatives.
+                  Pass ``np.column_stack([center_ids, context_ids])`` to
+                  exclude both positive IDs as the SGNS objective requires.
+                  If None, no exclusion is applied.
 
-        The original word2vec C code does not filter out the positive context
-        word from negatives; with a large vocabulary the collision probability
-        is negligible (~k/V).  We expose the option here for correctness.
-
-        Collisions are resolved by vectorised resampling; in practice the
-        while-loop body runs at most once per call.
+        Implementation note
+        -------------------
+        The original word2vec C code does not filter positive words from
+        negative samples; with large vocabularies the collision probability
+        is O(m·k/V) which is negligible.  We provide exact exclusion here
+        for correctness.  Collisions are resolved via vectorised resampling;
+        in practice the while-loop runs at most once per call.
         """
         slots  = np.random.randint(0, len(self._neg_table), size=(n, k))
         result = self._neg_table[slots]
 
         if exclude is not None:
-            # Resample any slot whose drawn word equals the excluded word for
-            # that row.  Broadcasting: exclude[:, None] has shape (n, 1).
+            # Normalise to 2-D: (n, m) where m is the number of words to exclude
+            excl = np.atleast_2d(exclude)
+            if excl.shape[0] != n:
+                excl = excl.T                    # handle (1, n) edge case
+            # mask[i, j] = True if result[i, j] matches any excluded word in row i
+            # Broadcasting: result (n, k, 1) vs excl (n, 1, m)
             while True:
-                mask = result == exclude[:, np.newaxis]   # (n, k) bool
+                mask = np.any(
+                    result[:, :, np.newaxis] == excl[:, np.newaxis, :],
+                    axis=2,
+                )                               # (n, k) bool
                 if not mask.any():
                     break
-                new_slots      = np.random.randint(0, len(self._neg_table),
-                                                   size=int(mask.sum()))
-                result[mask]   = self._neg_table[new_slots]
+                n_bad        = int(mask.sum())
+                new_slots    = np.random.randint(0, len(self._neg_table),
+                                                 size=n_bad)
+                result[mask] = self._neg_table[new_slots]
 
         return result
 
