@@ -1,4 +1,4 @@
-"""
+﻿"""
 reproduce.py — deterministic training run that generates the example results
 shown in the README.
 
@@ -32,7 +32,7 @@ from word2vec.corpus import download_text8, Vocabulary
 from word2vec.model  import Word2Vec
 from word2vec.train  import train
 
-# ── Fixed hyperparameters ──────────────────────────────────────────────────────
+# -- Fixed hyperparameters ------------------------------------------------------
 TOKENS     = 1_000_000
 DIM        = 100
 EPOCHS     = 5
@@ -53,27 +53,27 @@ def main():
     print(f"  tokens={TOKENS:,}  dim={DIM}  epochs={EPOCHS}  seed={SEED}")
     print("=" * 60)
 
-    # ── Data ──────────────────────────────────────────────────────────────────
+    # -- Data ------------------------------------------------------------------
     tokens    = download_text8()[:TOKENS]
     vocab     = Vocabulary(min_count=MIN_COUNT)
     vocab.build(tokens)
     token_ids = vocab.encode(tokens)
     print(f"Vocabulary: {vocab.size:,} words  |  encoded tokens: {len(token_ids):,}")
 
-    # ── Train ─────────────────────────────────────────────────────────────────
+    # -- Train -----------------------------------------------------------------
     model = Word2Vec(vocab_size=vocab.size, embed_dim=DIM, seed=SEED)
     train(model, vocab, token_ids,
           epochs=EPOCHS, window=WINDOW, neg_samples=NEG,
           batch_size=BATCH, lr_start=LR)
 
-    # ── Save ──────────────────────────────────────────────────────────────────
+    # -- Save ------------------------------------------------------------------
     os.makedirs(OUT_DIR, exist_ok=True)
     np.save(f"{OUT_DIR}/W_in.npy",  model.W_in)
     np.save(f"{OUT_DIR}/W_out.npy", model.W_out)
     with open(f"{OUT_DIR}/vocab.pkl", "wb") as f:
         pickle.dump(vocab, f)
 
-    # ── Nearest neighbours ────────────────────────────────────────────────────
+    # -- Nearest neighbours ----------------------------------------------------
     print("\nNearest neighbours:")
     W     = model.W_in.astype(np.float64)
     norms = np.linalg.norm(W, axis=1) + 1e-8
@@ -88,9 +88,9 @@ def main():
         sims[wid] = -2.0
         top5 = np.argpartition(sims, -5)[-5:]
         top5 = sorted(top5, key=lambda x: -sims[x])
-        print(f"  {word:>10}  →  {[vocab.idx2word[i] for i in top5]}")
+        print(f"  {word:>10}  ->  {[vocab.idx2word[i] for i in top5]}")
 
-    # ── Analogies ─────────────────────────────────────────────────────────────
+    # -- Analogies -------------------------------------------------------------
     print("\nAnalogies  (a : b :: c : ?):")
     for a, b, c in [("man", "king", "woman"), ("paris", "france", "berlin")]:
         w2i = vocab.word2idx
