@@ -30,7 +30,7 @@ import numpy as np
 
 from word2vec.corpus import download_text8, Vocabulary
 from word2vec.model  import Word2Vec
-from word2vec.train  import train
+from word2vec.trainer import train
 
 # -- Fixed hyperparameters ------------------------------------------------------
 TOKENS     = 1_000_000
