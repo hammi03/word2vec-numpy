@@ -77,12 +77,17 @@ This accelerates training and improves embeddings for lower-frequency words.
 ## Project structure
 
 ```
-word2vec/
-├── corpus.py    Vocabulary, subsampling, negative-sampling table, pair generation
-├── model.py     Word2Vec: forward pass, loss, gradients, SGD update
-└── train.py     Training loop with LR decay and logging
-train.py         CLI entry point
-evaluate.py      Word similarity and analogy evaluation
+word2vec-numpy/
+├── word2vec/           Python package — reusable library code
+│   ├── corpus.py       Vocabulary, subsampling, noise table, pair generation
+│   ├── model.py        Word2Vec: forward pass, loss, gradients, SGD update
+│   └── train.py        Training loop (linear LR decay, logging)
+├── tests/
+│   ├── test_corpus.py  Unit tests: vocabulary, encoding, pair generation
+│   └── test_model.py   Unit tests: gradient shapes, loss value, weight updates
+├── train.py            CLI entry point — downloads data, trains, saves embeddings
+├── evaluate.py         Word similarity and analogy evaluation
+└── requirements.txt
 ```
 
 ---
@@ -141,3 +146,4 @@ python train.py --tokens 1000000 --dim 50 --epochs 3
 - NumPy ≥ 1.24
 
 No other dependencies. The text8 corpus is downloaded automatically on first run (~31 MB compressed).
+`mattmahoney.net` serves over HTTP only; the downloader verifies the archive against a known SHA-256 checksum before extracting.

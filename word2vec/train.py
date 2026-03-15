@@ -75,7 +75,8 @@ def train(
 
             center_ids  = batch[:, 0]
             context_ids = batch[:, 1]
-            neg_ids     = vocab.sample_negatives(B, neg_samples)
+            neg_ids     = vocab.sample_negatives(B, neg_samples,
+                                                  exclude=context_ids)
 
             # Linear LR decay: lr decreases uniformly from lr_start to lr_min
             progress = global_step / max(total_steps_est, 1)
