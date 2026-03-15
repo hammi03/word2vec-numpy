@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>word2vec Explorer</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0D1117;
+    --surface:  #161B22;
+    --border:   #30363D;
+    --text:     #E6EDF3;
+    --muted:    #7D8590;
+    --accent:   #58A6FF;
+    --hover:    #1F2937;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    grid-template-columns: 280px 1fr;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  header h1 {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+  header h1 span { color: var(--accent); }
+  header p {
+    font-size: 13px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+  header a {
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+  header a:hover { background: var(--hover); }
+
+  /* ── Sidebar ── */
+  aside {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow-y: auto;
+  }
+
+  .search-wrap {
+    position: relative;
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.4;
+  }
+  #search {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px 8px 32px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #search:focus { border-color: var(--accent); }
+  #search::placeholder { color: var(--muted); }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* Legend */
+  .legend { display: flex; flex-direction: column; gap: 6px; }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: background 0.1s;
+    user-select: none;
+  }
+  .legend-item:hover { background: var(--hover); }
+  .legend-item.hidden { opacity: 0.35; }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Neighbours */
+  #neighbor-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .neighbor-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-radius: 5px;
+    background: var(--bg);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.1s;
+    border: 1px solid transparent;
+  }
+  .neighbor-item:hover { border-color: var(--border); background: var(--hover); }
+  .neighbor-word { font-weight: 500; }
+  .neighbor-sim {
+    font-size: 11px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  #no-selection {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Chart area ── */
+  main {
+    position: relative;
+    overflow: hidden;
+  }
+  #chart { width: 100%; height: 100%; }
+
+  /* Tooltip */
+  #tooltip {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s;
+    z-index: 10;
+  }
+  #tooltip .tt-word { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  #tooltip .tt-cat  { color: var(--muted); }
+
+  /* Hint */
+  #hint {
+    position: absolute;
+    bottom: 16px;
+    right: 20px;
+    font-size: 11px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>word2vec <span>Explorer</span></h1>
+  <p>Skip-gram · Negative Sampling · trained on text8</p>
+  <a href="https://github.com/hammi03/word2vec-numpy" target="_blank">GitHub &rarr;</a>
+</header>
+
+<aside>
+  <!-- Search -->
+  <div>
+    <div class="section-title">Search</div>
+    <div class="search-wrap">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.868-3.834zm-5.242 1.06a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/>
+      </svg>
+      <input id="search" type="text" placeholder="Type a word..." autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div>
+    <div class="section-title">Categories</div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <!-- Neighbours -->
+  <div style="flex:1; min-height:0; overflow-y:auto;">
+    <div class="section-title">Nearest Neighbours</div>
+    <div id="neighbor-list">
+      <p id="no-selection">Search or click a word to see its nearest neighbours in the embedding space.</p>
+    </div>
+  </div>
+</aside>
+
+<main>
+  <div id="chart"></div>
+  <div id="tooltip">
+    <div class="tt-word" id="tt-word"></div>
+    <div class="tt-cat"  id="tt-cat"></div>
+  </div>
+  <div id="hint">Scroll to zoom &nbsp;·&nbsp; Drag to pan</div>
+</main>
+
+<script src="data.js"></script>
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let selected   = null;
+let hiddenCats = new Set();
+const wordMap  = new Map(EMBED_DATA.words.map(d => [d.word, d]));
+
+// ── Dimensions ────────────────────────────────────────────────────────────────
+const container = document.getElementById("chart");
+const W = () => container.clientWidth;
+const H = () => container.clientHeight;
+const PAD = 48;
+
+const xScale = () => d3.scaleLinear().domain([-1, 1]).range([PAD, W() - PAD]);
+const yScale = () => d3.scaleLinear().domain([-1, 1]).range([H() - PAD, PAD]);
+
+// ── SVG setup ─────────────────────────────────────────────────────────────────
+const svg = d3.select("#chart").append("svg")
+  .attr("width",  "100%")
+  .attr("height", "100%");
+
+const zoomG = svg.append("g").attr("class", "zoom-group");
+const linesG = zoomG.append("g").attr("class", "lines");
+const dotsG  = zoomG.append("g").attr("class", "dots");
+const labelsG = zoomG.append("g").attr("class", "labels");
+
+const zoom = d3.zoom()
+  .scaleExtent([0.4, 12])
+  .on("zoom", e => zoomG.attr("transform", e.transform));
+
+svg.call(zoom);
+
+// ── Render dots ───────────────────────────────────────────────────────────────
+function render() {
+  const xs = xScale(), ys = yScale();
+
+  // Lines to neighbours
+  const lineData = selected
+    ? (selected.neighbors || []).map(n => ({
+        source: selected,
+        target: wordMap.get(n.word),
+      })).filter(d => d.target)
+    : [];
+
+  const lines = linesG.selectAll("line").data(lineData, d => d.target.word);
+  lines.enter().append("line")
+    .attr("stroke", "#58A6FF")
+    .attr("stroke-width", 1.2)
+    .attr("stroke-opacity", 0)
+    .attr("stroke-dasharray", "4 3")
+    .attr("x1", d => xs(d.source.x)).attr("y1", d => ys(d.source.y))
+    .attr("x2", d => xs(d.source.x)).attr("y2", d => ys(d.source.y))
+    .transition().duration(400)
+      .attr("x2", d => xs(d.target.x)).attr("y2", d => ys(d.target.y))
+      .attr("stroke-opacity", 0.5);
+  lines.exit().remove();
+
+  const neighborWords = new Set(selected ? selected.neighbors.map(n => n.word) : []);
+
+  // Dots
+  const dots = dotsG.selectAll("circle").data(EMBED_DATA.words, d => d.word);
+
+  dots.enter().append("circle")
+    .attr("r", 5)
+    .attr("cx", d => xs(d.x))
+    .attr("cy", d => ys(d.y))
+    .attr("fill", d => EMBED_DATA.palette[d.category] || "#888")
+    .attr("stroke", "none")
+    .style("cursor", "pointer")
+    .on("mouseover", onHover)
+    .on("mouseout",  onLeave)
+    .on("click",     onClick)
+  .merge(dots)
+    .attr("cx", d => xs(d.x))
+    .attr("cy", d => ys(d.y))
+    .attr("display", d => hiddenCats.has(d.category) ? "none" : null)
+    .transition().duration(200)
+      .attr("r", d => {
+        if (selected && d.word === selected.word) return 9;
+        if (neighborWords.has(d.word)) return 7;
+        return 5;
+      })
+      .attr("fill-opacity", d => {
+        if (!selected) return 0.85;
+        if (d.word === selected.word) return 1;
+        if (neighborWords.has(d.word)) return 1;
+        return 0.18;
+      })
+      .attr("stroke", d => {
+        if (selected && d.word === selected.word) return "white";
+        if (neighborWords.has(d.word)) return EMBED_DATA.palette[d.category] || "#888";
+        return "none";
+      })
+      .attr("stroke-width", d => (selected && d.word === selected.word) ? 2 : 1.2);
+
+  dots.exit().remove();
+
+  // Labels
+  const lblData = selected
+    ? EMBED_DATA.words.filter(d =>
+        d.word === selected.word || neighborWords.has(d.word))
+    : [];
+
+  const lbls = labelsG.selectAll("text").data(lblData, d => d.word);
+
+  lbls.enter().append("text")
+    .attr("x", d => xs(d.x) + 9)
+    .attr("y", d => ys(d.y) + 4)
+    .attr("font-size", "11px")
+    .attr("fill", d => EMBED_DATA.palette[d.category] || "#ccc")
+    .attr("font-weight", d => d.word === selected?.word ? "700" : "500")
+    .attr("pointer-events", "none")
+    .attr("opacity", 0)
+    .text(d => d.word)
+    .transition().duration(250).attr("opacity", 1);
+
+  lbls.exit().transition().duration(150).attr("opacity", 0).remove();
+}
+
+// ── Interactions ──────────────────────────────────────────────────────────────
+const tooltip = document.getElementById("tooltip");
+
+function onHover(event, d) {
+  if (hiddenCats.has(d.category)) return;
+  document.getElementById("tt-word").textContent = d.word;
+  document.getElementById("tt-cat").textContent  = d.category;
+  tooltip.style.opacity = "1";
+  tooltip.style.left = (event.offsetX + 14) + "px";
+  tooltip.style.top  = (event.offsetY - 36) + "px";
+}
+
+function onLeave() {
+  tooltip.style.opacity = "0";
+}
+
+function onClick(event, d) {
+  if (hiddenCats.has(d.category)) return;
+  selectWord(d.word);
+}
+
+function selectWord(word) {
+  const d = wordMap.get(word);
+  if (!d) return;
+  selected = d;
+  document.getElementById("search").value = word;
+  updateNeighborPanel(d);
+  render();
+  // Smooth pan to selected word
+  const xs = xScale(), ys = yScale();
+  const tx = W() / 2 - xs(d.x);
+  const ty = H() / 2 - ys(d.y);
+  svg.transition().duration(500)
+    .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(1));
+}
+
+function updateNeighborPanel(d) {
+  const panel = document.getElementById("neighbor-list");
+  panel.innerHTML = "";
+  document.getElementById("no-selection")?.remove();
+
+  d.neighbors.forEach((n, i) => {
+    const el = document.createElement("div");
+    el.className = "neighbor-item";
+    const color = EMBED_DATA.palette[wordMap.get(n.word)?.category] || "#888";
+    el.innerHTML = `
+      <span class="neighbor-word" style="color:${color}">${i + 1}. ${n.word}</span>
+      <span class="neighbor-sim">${n.sim.toFixed(3)}</span>`;
+    el.addEventListener("click", () => selectWord(n.word));
+    panel.appendChild(el);
+  });
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+document.getElementById("search").addEventListener("input", e => {
+  const q = e.target.value.trim().toLowerCase();
+  if (!q) { selected = null; renderNeighborReset(); render(); return; }
+  if (wordMap.has(q)) selectWord(q);
+});
+
+function renderNeighborReset() {
+  const panel = document.getElementById("neighbor-list");
+  panel.innerHTML = '<p id="no-selection">Search or click a word to see its nearest neighbours in the embedding space.</p>';
+}
+
+// ── Legend ────────────────────────────────────────────────────────────────────
+const legend = document.getElementById("legend");
+EMBED_DATA.groups.forEach(cat => {
+  const color = EMBED_DATA.palette[cat] || "#888";
+  const item  = document.createElement("div");
+  item.className = "legend-item";
+  item.dataset.cat = cat;
+  item.innerHTML = `<div class="legend-dot" style="background:${color}"></div><span>${cat}</span>`;
+  item.addEventListener("click", () => {
+    if (hiddenCats.has(cat)) hiddenCats.delete(cat);
+    else hiddenCats.add(cat);
+    item.classList.toggle("hidden", hiddenCats.has(cat));
+    render();
+  });
+  legend.appendChild(item);
+});
+
+// ── Init & resize ─────────────────────────────────────────────────────────────
+render();
+window.addEventListener("resize", render);
+</script>
+</body>
+</html>
