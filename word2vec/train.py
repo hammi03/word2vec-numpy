@@ -1,4 +1,4 @@
-"""
+﻿"""
 train.py — training loop with linear learning-rate decay and progress logging.
 """
 
