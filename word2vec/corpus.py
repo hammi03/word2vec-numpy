@@ -2,8 +2,8 @@
 corpus.py — data loading, vocabulary, and training-pair generation.
 """
 
+import hashlib
 import os
-import re
 import zipfile
 import urllib.request
 from collections import Counter
@@ -12,7 +12,10 @@ import numpy as np
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-TEXT8_URL  = "http://mattmahoney.net/dc/text8.zip"
+# mattmahoney.net does not serve HTTPS; we verify integrity with a SHA-256
+# checksum instead of relying on transport encryption.
+TEXT8_SHA256 = "6c70efeb93536e3df6afddebf12db3f6e4a0cebe6423da50c28f6680ff1c22f1"
+TEXT8_URL    = "http://mattmahoney.net/dc/text8.zip"
 TEXT8_PATH = "data/text8"
 
 
@@ -31,8 +34,18 @@ def download_text8() -> list:
         zip_path = TEXT8_PATH + ".zip"
         if not os.path.exists(zip_path):
             print(f"Downloading text8 from {TEXT8_URL} ...")
+            print("Note: mattmahoney.net serves over HTTP only; "
+                  "integrity is verified via SHA-256 after download.")
             urllib.request.urlretrieve(TEXT8_URL, zip_path)
-            print("Download complete.")
+            digest = hashlib.sha256(open(zip_path, "rb").read()).hexdigest()
+            if digest != TEXT8_SHA256:
+                os.remove(zip_path)
+                raise RuntimeError(
+                    f"SHA-256 mismatch for text8.zip — "
+                    f"expected {TEXT8_SHA256}, got {digest}. "
+                    "File may be corrupted or tampered with."
+                )
+            print("Download complete (checksum OK).")
         print("Extracting ...")
         with zipfile.ZipFile(zip_path) as zf:
             zf.extractall("data/")
@@ -134,13 +147,45 @@ class Vocabulary:
         mask  = np.random.random(len(ids)) < probs
         return ids[mask]
 
-    def sample_negatives(self, n: int, k: int) -> np.ndarray:
+    def sample_negatives(
+        self,
+        n:       int,
+        k:       int,
+        exclude: np.ndarray = None,
+    ) -> np.ndarray:
         """
         Draw an (n, k) array of noise-word indices from the unigram^(3/4) table.
-        O(1) per sample thanks to the flat lookup table.
+
+        Parameters
+        ----------
+        n       : number of training pairs (rows)
+        k       : negative samples per pair (columns)
+        exclude : int32 array of shape (n,) — one word index per row to
+                  exclude from that row's negative samples (typically the
+                  true context word).  If None, no exclusion is applied.
+
+        The original word2vec C code does not filter out the positive context
+        word from negatives; with a large vocabulary the collision probability
+        is negligible (~k/V).  We expose the option here for correctness.
+
+        Collisions are resolved by vectorised resampling; in practice the
+        while-loop body runs at most once per call.
         """
-        slots = np.random.randint(0, len(self._neg_table), size=(n, k))
-        return self._neg_table[slots]
+        slots  = np.random.randint(0, len(self._neg_table), size=(n, k))
+        result = self._neg_table[slots]
+
+        if exclude is not None:
+            # Resample any slot whose drawn word equals the excluded word for
+            # that row.  Broadcasting: exclude[:, None] has shape (n, 1).
+            while True:
+                mask = result == exclude[:, np.newaxis]   # (n, k) bool
+                if not mask.any():
+                    break
+                new_slots      = np.random.randint(0, len(self._neg_table),
+                                                   size=int(mask.sum()))
+                result[mask]   = self._neg_table[new_slots]
+
+        return result
 
 
 # ── Training-pair generation ──────────────────────────────────────────────────
