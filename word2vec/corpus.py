@@ -14,7 +14,7 @@ import numpy as np
 
 # mattmahoney.net does not serve HTTPS; we verify integrity with a SHA-256
 # checksum instead of relying on transport encryption.
-TEXT8_SHA256 = "6c70efeb93536e3df6afddebf12db3f6e4a0cebe6423da50c28f6680ff1c22f1"
+TEXT8_SHA256 = "a6640522afe85d1963ad56c05b0ede0a0c000dddc9671758a6cc09b7a38e5232"
 TEXT8_URL    = "http://mattmahoney.net/dc/text8.zip"
 TEXT8_PATH = "data/text8"
 

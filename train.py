@@ -56,19 +56,19 @@ def quick_eval(model: Word2Vec, vocab: Vocabulary) -> None:
         wid     = vocab.word2idx[word]
         neighbours = model.most_similar(wid, top_n=6)
         words   = [vocab.idx2word[i] for i, _ in neighbours]
-        print(f"  {word:>10}  →  {words}")
+        print(f"  {word:>10}  ->  {words}")
 
 
 def main():
     args = parse_args()
 
-    # ── 1. Load corpus ────────────────────────────────────────────────────────
-    print("─" * 60)
+    # -- 1. Load corpus --------------------------------------------------------
+    print("-" * 60)
     tokens = download_text8()
     tokens = tokens[: args.tokens]
     print(f"Corpus      : {len(tokens):,} tokens")
 
-    # ── 2. Build vocabulary ───────────────────────────────────────────────────
+    # -- 2. Build vocabulary ---------------------------------------------------
     vocab = Vocabulary(min_count=args.min_count)
     vocab.build(tokens)
     print(f"Vocabulary  : {vocab.size:,} unique words")
@@ -76,13 +76,13 @@ def main():
     token_ids = vocab.encode(tokens)
     print(f"Encoded     : {len(token_ids):,} token indices")
 
-    # ── 3. Initialise model ───────────────────────────────────────────────────
+    # -- 3. Initialise model ---------------------------------------------------
     model = Word2Vec(vocab_size=vocab.size, embed_dim=args.dim)
     n_params = vocab.size * args.dim * 2
     print(f"Model       : V={vocab.size}, d={args.dim}, params={n_params:,}")
-    print("─" * 60)
+    print("-" * 60)
 
-    # ── 4. Train ──────────────────────────────────────────────────────────────
+    # -- 4. Train --------------------------------------------------------------
     train(
         model, vocab, token_ids,
         epochs      = args.epochs,
@@ -92,10 +92,10 @@ def main():
         lr_start    = args.lr,
     )
 
-    # ── 5. Quick sanity check ─────────────────────────────────────────────────
+    # -- 5. Quick sanity check -------------------------------------------------
     quick_eval(model, vocab)
 
-    # ── 6. Save ───────────────────────────────────────────────────────────────
+    # -- 6. Save ---------------------------------------------------------------
     os.makedirs(args.out, exist_ok=True)
     np.save(os.path.join(args.out, "W_in.npy"),  model.W_in)
     np.save(os.path.join(args.out, "W_out.npy"), model.W_out)
